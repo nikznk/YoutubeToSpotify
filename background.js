@@ -1,105 +1,140 @@
-const SPOTIFY_CLIENT_ID = '34831eac922f4f8a93d28c81c559877c'; // Replace with your actual Spotify client ID
+//background.js file
 
-chrome.runtime.onInstalled.addListener(() => {
-  console.log('YouTube to Spotify Extension Installed');
-});
-
+// Handle messages from content script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log('Received message:', request);
-  if (request.action === 'saveToSpotify') {
-    const { title, artist } = request;
-    console.log(`Saving to Spotify: ${title} by ${artist}`);
-    authenticateSpotify().then(accessToken => {
-      console.log('Access token received:', accessToken);
-      searchSpotify(title, artist, accessToken).then(trackId => {
-        console.log('Track ID found:', trackId);
-        addToSpotifyLibrary(trackId, accessToken);
-      }).catch(error => {
-        console.error('Error searching track:', JSON.stringify(error));
-        alert('Failed to find the track on Spotify.');
-      });
-    }).catch(error => {
-      console.error('Error authenticating with Spotify:', JSON.stringify(error));
-      alert('Failed to authenticate with Spotify.');
-    });
-  }
+    if (request.type === 'GET_PLAYLISTS') {
+        fetchPlaylists().then(playlists => {
+            sendResponse({ playlists });
+        });
+        return true;
+    }
+
+    if (request.type === 'ADD_TO_PLAYLIST') {
+        handleAddToPlaylist(request.data).then(success => {
+            sendResponse({ success });
+        });
+        return true;
+    }
 });
 
-function authenticateSpotify() {
-  return new Promise((resolve, reject) => {
-    const redirectUri = chrome.identity.getRedirectURL();
-    console.log('Redirect URI:', redirectUri);
-    const authUrl = `https://accounts.spotify.com/authorize?client_id=${SPOTIFY_CLIENT_ID}&response_type=token&redirect_uri=${encodeURIComponent(redirectUri)}&scope=playlist-modify-public playlist-modify-private`;
+async function fetchPlaylists() {
+    const token = await chrome.storage.local.get('spotify_token');
+    if (!token.spotify_token) return [];
 
-    chrome.identity.launchWebAuthFlow({
-      url: authUrl,
-      interactive: true
-    }, (redirectUrl) => {
-      if (chrome.runtime.lastError) {
-        console.error('Error in launchWebAuthFlow:', chrome.runtime.lastError);
-        return reject(new Error(chrome.runtime.lastError.message));
-      }
-      console.log('Redirect URL:', redirectUrl);
-      const accessTokenMatch = new URL(redirectUrl).hash.match(/access_token=([^&]*)/);
-      if (accessTokenMatch && accessTokenMatch[1]) {
-        resolve(accessTokenMatch[1]);
-      } else {
-        reject(new Error('Access token not found in the URL'));
-      }
-    });
-  });
+    try {
+        const response = await fetch('https://api.spotify.com/v1/me/playlists', {
+            headers: {
+                'Authorization': `Bearer ${token.spotify_token}`
+            }
+        });
+
+        if (!response.ok) throw new Error('Failed to fetch playlists');
+        const data = await response.json();
+        return data.items;
+    } catch (error) {
+        console.error('Error fetching playlists:', error);
+        return [];
+    }
 }
 
-function searchSpotify(title, artist, accessToken) {
-  const query = encodeURIComponent(`track:${title} artist:${artist}`);
-  const url = `https://api.spotify.com/v1/search?q=${query}&type=track`;
-  console.log('Searching Spotify with URL:', url);
+async function handleAddToPlaylist({ playlistId, videoInfo }) {
+    const token = await chrome.storage.local.get('spotify_token');
+    if (!token.spotify_token) return { success: false, message: 'Not authenticated' };
 
-  return fetch(url, {
-    headers: {
-      'Authorization': `Bearer ${accessToken}`
+    try {
+        // Search for the track
+        const searchResponse = await fetch(
+            `https://api.spotify.com/v1/search?q=${encodeURIComponent(videoInfo.title)}&type=track&limit=1`,
+            {
+                headers: {
+                    'Authorization': `Bearer ${token.spotify_token}`
+                }
+            }
+        );
+
+        if (!searchResponse.ok) throw new Error('Failed to search track');
+        const searchData = await searchResponse.json();
+        const track = searchData.tracks.items[0];
+
+        if (!track) {
+            return {
+                success: false,
+                message: 'Track not found on Spotify'
+            };
+        }
+
+        // Check if track already exists in playlist
+        const exists = await checkTrackInPlaylist(playlistId, track.uri, token.spotify_token);
+
+        if (exists) {
+            return {
+                success: false,
+                message: 'Track already exists in playlist',
+                alreadyExists: true
+            };
+        }
+
+        // Add track to playlist
+        const addResponse = await fetch(
+            `https://api.spotify.com/v1/playlists/${playlistId}/tracks`,
+            {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token.spotify_token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    uris: [track.uri]
+                })
+            }
+        );
+
+        if (!addResponse.ok) {
+            throw new Error('Failed to add track to playlist');
+        }
+
+        return {
+            success: true,
+            message: 'Track added successfully'
+        };
+    } catch (error) {
+        console.error('Error adding to playlist:', error);
+        return {
+            success: false,
+            message: error.message || 'Failed to add track'
+        };
     }
-  })
-  .then(response => {
-    if (!response.ok) {
-      throw new Error(`Spotify API response not OK: ${response.statusText}`);
-    }
-    return response.json();
-  })
-  .then(data => {
-    console.log('Spotify search result:', data);
-    if (data.tracks.items.length > 0) {
-      return data.tracks.items[0].id;
-    } else {
-      throw new Error('Track not found');
-    }
-  }).catch(error => {
-    console.error('Error in Spotify search:', JSON.stringify(error));
-    throw error;
-  });
 }
 
-function addToSpotifyLibrary(trackId, accessToken) {
-  console.log('Adding track to Spotify library:', trackId);
-  fetch(`https://api.spotify.com/v1/me/tracks`, {
-    method: 'PUT',
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ ids: [trackId] })
-  }).then(response => {
-    if (response.ok) {
-      console.log('Track added successfully');
-      alert('Song added to your Spotify library!');
-    } else {
-      return response.json().then(errorData => {
-        console.error('Failed to add the track', JSON.stringify(errorData));
-        alert('Failed to add the song to your Spotify library.');
-      });
+async function checkTrackInPlaylist(playlistId, trackUri, token) {
+    try {
+        // Get tracks in playlist (paginate through all tracks)
+        let offset = 0;
+        const limit = 100;
+        let allTracks = [];
+
+        while (true) {
+            const response = await fetch(
+                `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=${limit}&offset=${offset}`,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                }
+            );
+
+            if (!response.ok) throw new Error('Failed to fetch playlist tracks');
+            const data = await response.json();
+
+            allTracks = allTracks.concat(data.items.map(item => item.track.uri));
+
+            if (data.items.length < limit) break;
+            offset += limit;
+        }
+
+        return allTracks.includes(trackUri);
+    } catch (error) {
+        console.error('Error checking track in playlist:', error);
+        return false;
     }
-  }).catch(error => {
-    console.error('Error adding track to Spotify library:', JSON.stringify(error));
-    alert('Failed to add the song to your Spotify library.');
-  });
 }
