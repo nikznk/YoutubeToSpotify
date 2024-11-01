@@ -1,0 +1,13 @@
+{
+  "name": "youtube-to-spotify",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "node build.js"
+  },
+  "description": "1. Clone the repository\r 2. Copy `config.template.js` to `config.js`\r 3. Add your Spotify Client ID to `config.js`\r 4. Load the extension in Chrome",
+  "main": "background.js",
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

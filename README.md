@@ -1,20 +1,13 @@
-# YouTube to Spotify/Apple Music Saver
+# YouTube to Spotify Saver
 
 ## Setup
 1. Clone the repository
-2. Copy `config.template.js` to `config.js`
-3. Add your Spotify Client ID to `config.js`
-4. Load the extension in Chrome
+2. Copy `config.template.js` to `config.js` and add your Spotify Client ID
+3. Run `npm install` (if you haven't already)
+4. Run `npm run build` to generate manifest.json
+5. Load the extension in Chrome
 
-## Configuration
-Create a `config.js` file with your credentials:
-```javascript
-const config = {
-    SPOTIFY_CLIENT_ID: 'YOUR_SPOTIFY_CLIENT_ID_HERE'
-};
-
-export default config;
-```
-
-## Security Note
-Never commit your actual Client ID or any other sensitive credentials to the repository.
+## Development
+- manifest.json is generated from manifest.template.json during build
+- Never commit manifest.json or config.js
+- Always run `npm run build` after updating config.js

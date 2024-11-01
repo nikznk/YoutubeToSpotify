@@ -1,5 +1,9 @@
 # Config files with sensitive data
 config.js
+manifest.json
+
+# Dependencies
+node_modules/
 
 # IDE and editor files
 .vscode/
