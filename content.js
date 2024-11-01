@@ -44,18 +44,25 @@ function getVideoInfo() {
   try {
     const title = document.querySelector('h1.ytd-video-primary-info-renderer')?.textContent?.trim();
     const channel = document.querySelector('ytd-channel-name yt-formatted-string a')?.textContent?.trim();
+    const description = document.querySelector('ytd-expander#description')?.textContent?.trim();
 
-    console.log('Found video info:', { title, channel });
+    console.log('Found video info:', {
+      title,
+      channel,
+      description: description?.substring(0, 200) // First 200 chars
+    });
 
     return {
       title: title || 'Unknown Title',
-      channel: channel || 'Unknown Channel'
+      channel: channel || 'Unknown Channel',
+      description: description || ''
     };
   } catch (error) {
     console.error('Error getting video info:', error);
     return {
       title: 'Error getting video title',
-      channel: 'Unknown Channel'
+      channel: 'Unknown Channel',
+      description: ''
     };
   }
 }
