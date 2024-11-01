@@ -1,6 +1,6 @@
 //popup.js file
 // Spotify configuration
-const CLIENT_ID = '34831eac922f4f8a93d28c81c559877c';
+const CLIENT_ID = config.SPOTIFY_CLIENT_ID;
 const REDIRECT_URI = chrome.identity.getRedirectURL();
 const SCOPES = [
     'playlist-modify-public',
