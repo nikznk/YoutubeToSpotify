@@ -375,47 +375,49 @@ async function handlePlaylistClick(event) {
   const button = event.currentTarget;
   const playlistId = button.dataset.playlistId;
   const originalContent = button.innerHTML;
+
   try {
-    // Show loading state
     button.innerHTML = `
       <div style="display: flex; align-items: center; justify-content: center; width: 100%;">
         <div style="border: 2px solid #1DB954; border-top-color: transparent; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; margin-right: 8px;"></div>
-        Adding...
+        Processing...
       </div>
     `;
     button.disabled = true;
 
-    // Get current video info
     const videoInfo = getVideoInfo();
 
-    // Send message to background script
+    // Send all the work to background script
     const response = await chrome.runtime.sendMessage({
       type: 'ADD_TO_PLAYLIST',
-      data: { playlistId, videoInfo }
+      data: {
+        playlistId,
+        videoInfo,
+        checkDuplicate: true // New flag to enable duplicate checking
+      }
     });
 
     if (!response?.success) {
       throw new Error(response?.message || 'Failed to add to playlist');
     }
 
-    // Show success state
     button.innerHTML = `
       <div style="display: flex; align-items: center; justify-content: center; width: 100%; color: #1DB954;">
         <span style="margin-right: 8px;">✓</span>
-        Added!
+        ${response.message || 'Added!'}
       </div>
     `;
 
     setTimeout(() => {
       const menu = document.getElementById('spotify-playlist-menu');
       if (menu) menu.remove();
-      showSuccessNotification('Added to playlist!');
+      showSuccessNotification(response.message || 'Added to playlist!');
     }, 1000);
 
   } catch (error) {
-    console.error('Error adding to playlist:', error);
+    console.error('Error:', error);
     button.innerHTML = `
-      <div style="color: #ff4444; padding: 8px;">
+      <div style="color: #ff4444; padding: 8px; text-align: center;">
         ${error.message}
       </div>
     `;
