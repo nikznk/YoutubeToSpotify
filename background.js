@@ -3,17 +3,25 @@
 // Handle messages from content script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.type === 'GET_PLAYLISTS') {
-        fetchPlaylists().then(playlists => {
-            sendResponse({ playlists });
-        });
-        return true;
+        fetchPlaylists()
+            .then(playlists => {
+                sendResponse({ playlists, success: true });
+            })
+            .catch(error => {
+                sendResponse({ error: error.message, success: false });
+            });
+        return true; // Will respond asynchronously
     }
 
     if (request.type === 'ADD_TO_PLAYLIST') {
-        handleAddToPlaylist(request.data).then(success => {
-            sendResponse({ success });
-        });
-        return true;
+        handleAddToPlaylist(request.data)
+            .then(result => {
+                sendResponse({ success: true, ...result });
+            })
+            .catch(error => {
+                sendResponse({ success: false, message: error.message });
+            });
+        return true; // Will respond asynchronously
     }
 });
 

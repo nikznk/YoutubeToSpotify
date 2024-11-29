@@ -3,6 +3,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import config from './config.js';
 
+// Get the current file's directory
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -30,6 +31,7 @@ async function buildManifest() {
         console.error('❌ Error generating manifest.json:', error);
         console.error('Current directory:', __dirname);
         console.error('Full error:', error);
+        process.exit(1);
     }
 }
 

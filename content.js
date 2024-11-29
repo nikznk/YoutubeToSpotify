@@ -146,10 +146,23 @@ async function addSpotifyButton() {
     });
 
     // Handle click event
-    spotifyButton.addEventListener('click', (e) => {
+    spotifyButton.addEventListener('click', async (e) => {
       e.stopPropagation();
       e.preventDefault();
+
+      // Get video info
       const videoInfo = getVideoInfo();
+
+      // Get token to check auth status
+      const token = await chrome.storage.local.get('spotify_token');
+      if (!token.spotify_token) {
+        // If not authenticated, show auth popup
+        showSuccessNotification('Please authenticate with Spotify first');
+        chrome.runtime.sendMessage({ type: 'OPEN_POPUP' });
+        return;
+      }
+
+      // Show playlist menu if authenticated
       showPlaylistMenu(videoInfo, spotifyButton);
     });
 
@@ -167,156 +180,293 @@ async function addSpotifyButton() {
   }
 }
 
+function isValidPlaylist(playlist) {
+  return playlist
+    && typeof playlist === 'object'
+    && typeof playlist.id === 'string'
+    && typeof playlist.name === 'string'
+    && playlist.tracks
+    && typeof playlist.tracks.total === 'number';
+}
+
 // Show playlist menu
-function showPlaylistMenu(videoInfo, buttonElement) {
-  // Remove existing menu if any
-  const existingMenu = document.getElementById('spotify-playlist-menu');
-  if (existingMenu) existingMenu.remove();
+async function showPlaylistMenu(videoInfo, buttonElement) {
+  try {
+    console.log('Starting showPlaylistMenu...'); // Debug log
 
-  // Create menu container
-  const menu = document.createElement('div');
-  menu.id = 'spotify-playlist-menu';
-  menu.style.cssText = `
-    position: fixed;
-    background: #282828;
-    border-radius: 4px;
-    padding: 8px 0;
-    min-width: 280px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    z-index: 2147483647;
-    color: white;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
-  `;
+    // Remove existing menu
+    const existingMenu = document.getElementById('spotify-playlist-menu');
+    if (existingMenu) existingMenu.remove();
 
-  // Add loading state initially
-  menu.innerHTML = `
-    <div style="padding: 8px 16px;">
-      <div style="display: flex; align-items: center; justify-content: center;">
-        <div style="border: 2px solid #1DB954; border-top-color: transparent; border-radius: 50%; width: 18px; height: 18px; animation: spin 1s linear infinite;"></div>
-      </div>
-    </div>
-  `;
+    // Get token
+    const token = await chrome.storage.local.get('spotify_token');
+    console.log('Token status:', !!token.spotify_token); // Debug log
 
-  // Add menu to page
-  document.body.appendChild(menu);
-
-  // Position menu above button
-  const buttonRect = buttonElement.getBoundingClientRect();
-  menu.style.bottom = `${window.innerHeight - buttonRect.top + 10}px`;
-  menu.style.right = `${window.innerWidth - buttonRect.right + 10}px`;
-
-  // Add click outside listener to close menu
-  function handleClickOutside(e) {
-    if (!menu.contains(e.target) && e.target !== buttonElement) {
-      menu.remove();
-      document.removeEventListener('click', handleClickOutside);
+    if (!token.spotify_token) {
+      throw new Error('No Spotify token found');
     }
-  }
 
-  // Delay adding the click outside listener to prevent immediate closing
-  setTimeout(() => {
-    document.addEventListener('click', handleClickOutside);
-  }, 0);
+    // Create menu with loading state
+    const menu = document.createElement('div');
+    menu.id = 'spotify-playlist-menu';
+    menu.style.cssText = `
+            position: fixed;
+            background: #282828;
+            border-radius: 8px;
+            padding: 12px;
+            min-width: 300px;
+            max-width: 350px;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+            z-index: 2147483647;
+            color: white;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        `;
 
-  // Get playlists and update menu
-  chrome.runtime.sendMessage({ type: 'GET_PLAYLISTS' }, (response) => {
-    if (!response || response.error) {
+    // Add loading state
+    menu.innerHTML = `
+            <div style="padding: 16px; text-align: center;">
+                <div style="display: inline-block; border: 2px solid #1DB954; border-top-color: transparent; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite;"></div>
+                <div style="margin-top: 8px; color: #b3b3b3;">Loading playlists...</div>
+            </div>
+        `;
+
+    // Position menu
+    const buttonRect = buttonElement.getBoundingClientRect();
+    menu.style.top = `${buttonRect.bottom + 10}px`;
+    menu.style.left = `${buttonRect.left}px`;
+    document.body.appendChild(menu);
+
+    // Fetch playlists
+    console.log('Fetching playlists...'); // Debug log
+    const response = await fetch('https://api.spotify.com/v1/me/playlists?limit=50', {
+      headers: {
+        'Authorization': `Bearer ${token.spotify_token}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch playlists: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log('Received playlists:', data); // Debug log
+
+    if (!data || !Array.isArray(data.items)) {
+      throw new Error('Invalid playlist data received');
+    }
+
+    // Filter valid playlists
+    const validPlaylists = data.items.filter(isValidPlaylist);
+    console.log('Valid playlists:', validPlaylists.length); // Debug log
+
+    if (validPlaylists.length === 0) {
       menu.innerHTML = `
-        <div style="padding: 8px 16px; color: #ff4444;">
-          Please connect to Spotify first
-        </div>
-      `;
+                <div style="padding: 16px; text-align: center; color: #b3b3b3;">
+                    No playlists found
+                </div>
+            `;
       return;
     }
 
-    const playlists = response.playlists || [];
-
-    // Create the menu content with search
+    // Update menu with content
     menu.innerHTML = `
-      <div style="padding: 8px 16px;">
-        <div style="font-size: 14px; font-weight: 500; margin-bottom: 8px;">Save to Playlist</div>
-        <div style="margin-bottom: 8px;">
-          <input type="text" 
-                 id="playlist-search" 
-                 placeholder="Search playlists..." 
-                 style="
-                   width: 100%;
-                   padding: 6px 8px;
-                   border: none;
-                   border-radius: 4px;
-                   background: #333;
-                   color: white;
-                   font-size: 13px;
-                   outline: none;
-                 "
-          >
-        </div>
-        <div id="playlists-container" style="
-          max-height: 300px;
-          overflow-y: auto;
-          margin: 0 -16px;
-          scrollbar-width: thin;
-          scrollbar-color: #666 #282828;
-        ">
-          ${renderPlaylistItems(playlists)}
-        </div>
-      </div>
-    `;
+            <div style="padding: 12px;">
+                <div style="font-size: 14px; font-weight: 500; margin-bottom: 12px;">
+                    Add "${videoInfo?.title || 'Current video'}" to Playlist
+                </div>
+                <div style="margin-bottom: 12px;">
+                    <input 
+                        type="text" 
+                        id="playlist-search" 
+                        placeholder="Search playlists..."
+                        style="
+                            width: 100%;
+                            padding: 8px 12px;
+                            border: none;
+                            border-radius: 4px;
+                            background: #333;
+                            color: white;
+                            font-size: 13px;
+                            outline: none;
+                        "
+                    >
+                </div>
+                <div id="playlists-container" style="
+                    max-height: 400px;
+                    overflow-y: auto;
+                    margin: 0 -12px;
+                ">
+                    ${validPlaylists.map(playlist => `
+                        <button 
+                            class="playlist-item" 
+                            data-playlist-id="${playlist.id}"
+                            style="
+                                width: 100%;
+                                display: flex;
+                                align-items: center;
+                                padding: 8px 12px;
+                                background: none;
+                                border: none;
+                                color: white;
+                                cursor: pointer;
+                                transition: background-color 0.2s;
+                                text-align: left;
+                            "
+                        >
+                            <div style="min-width: 40px; height: 40px; margin-right: 12px; background: #333; border-radius: 4px; overflow: hidden;">
+                                ${playlist.images && playlist.images[0] ?
+        `<img src="${playlist.images[0].url}" style="width: 100%; height: 100%; object-fit: cover;">` :
+        ''
+      }
+                            </div>
+                            <div>
+                                <div class="playlist-name" style="font-size: 14px; margin-bottom: 4px;">${playlist.name}</div>
+                                <div style="font-size: 12px; color: #b3b3b3;">${playlist.tracks.total} tracks</div>
+                            </div>
+                        </button>
+                    `).join('')}
+                </div>
+            </div>
+        `;
 
     // Add search functionality
     const searchInput = menu.querySelector('#playlist-search');
-    const playlistsContainer = menu.querySelector('#playlists-container');
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        const searchTerm = e.target.value.toLowerCase();
+        const items = menu.querySelectorAll('.playlist-item');
+        items.forEach(item => {
+          const name = item.querySelector('.playlist-name')?.textContent.toLowerCase() || '';
+          item.style.display = name.includes(searchTerm) ? 'flex' : 'none';
+        });
+      });
+      searchInput.focus();
+    }
 
-    searchInput.addEventListener('input', (e) => {
-      const searchTerm = e.target.value.toLowerCase();
-      const filteredPlaylists = playlists.filter(playlist =>
-        playlist.name.toLowerCase().includes(searchTerm)
-      );
-      playlistsContainer.innerHTML = renderPlaylistItems(filteredPlaylists);
-      attachPlaylistHandlers(playlistsContainer, videoInfo, menu);
+    // Add playlist click handlers
+    menu.querySelectorAll('.playlist-item').forEach(button => {
+      // Hover effects
+      button.addEventListener('mouseover', () => {
+        button.style.backgroundColor = '#333';
+      });
+      button.addEventListener('mouseout', () => {
+        button.style.backgroundColor = 'transparent';
+      });
+
+      // Click handler
+      button.addEventListener('click', handlePlaylistClick);
     });
 
-    // Add keyboard navigation
-    addKeyboardSupport(menu);
+    // Close menu on outside click
+    document.addEventListener('click', function closeMenu(e) {
+      if (!menu.contains(e.target) && e.target !== buttonElement) {
+        menu.remove();
+        document.removeEventListener('click', closeMenu);
+      }
+    });
 
-    // Attach handlers to initial playlist items
-    attachPlaylistHandlers(playlistsContainer, videoInfo, menu);
-
-    // Focus search input
-    searchInput.focus();
-  });
+  } catch (error) {
+    console.error('Error in showPlaylistMenu:', error);
+    showError(error.message);
+  }
 }
+
+async function handlePlaylistClick(event) {
+  const button = event.currentTarget;
+  const playlistId = button.dataset.playlistId;
+  const originalContent = button.innerHTML;
+  try {
+    // Show loading state
+    button.innerHTML = `
+      <div style="display: flex; align-items: center; justify-content: center; width: 100%;">
+        <div style="border: 2px solid #1DB954; border-top-color: transparent; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; margin-right: 8px;"></div>
+        Adding...
+      </div>
+    `;
+    button.disabled = true;
+
+    // Get current video info
+    const videoInfo = getVideoInfo();
+
+    // Send message to background script
+    const response = await chrome.runtime.sendMessage({
+      type: 'ADD_TO_PLAYLIST',
+      data: { playlistId, videoInfo }
+    });
+
+    if (!response?.success) {
+      throw new Error(response?.message || 'Failed to add to playlist');
+    }
+
+    // Show success state
+    button.innerHTML = `
+      <div style="display: flex; align-items: center; justify-content: center; width: 100%; color: #1DB954;">
+        <span style="margin-right: 8px;">✓</span>
+        Added!
+      </div>
+    `;
+
+    setTimeout(() => {
+      const menu = document.getElementById('spotify-playlist-menu');
+      if (menu) menu.remove();
+      showSuccessNotification('Added to playlist!');
+    }, 1000);
+
+  } catch (error) {
+    console.error('Error adding to playlist:', error);
+    button.innerHTML = `
+      <div style="color: #ff4444; padding: 8px;">
+        ${error.message}
+      </div>
+    `;
+    setTimeout(() => {
+      button.innerHTML = originalContent;
+      button.disabled = false;
+    }, 2000);
+  }
+}
+
+
 
 // Render playlist items
 function renderPlaylistItems(playlists) {
   if (!playlists || playlists.length === 0) {
     return `
-      <div style="padding: 8px 16px; color: #999; text-align: center;">
-        No playlists found
-      </div>
-    `;
+            <div style="text-align: center; color: #b3b3b3; padding: 16px;">
+                No playlists found
+            </div>
+        `;
   }
 
   return playlists.map(playlist => `
-    <button class="playlist-item" 
-            data-playlist-id="${playlist.id}" 
+        <button 
+            class="playlist-item" 
+            data-playlist-id="${playlist.id}"
             style="
-              width: 100%;
-              text-align: left;
-              padding: 8px 16px;
-              background: none;
-              border: none;
-              color: white;
-              cursor: pointer;
-              font-size: 13px;
-              display: flex;
-              align-items: center;
-              gap: 8px;
+                width: 100%;
+                display: flex;
+                align-items: center;
+                padding: 8px 12px;
+                margin: 2px 0;
+                background: none;
+                border: none;
+                color: white;
+                cursor: pointer;
+                border-radius: 4px;
+                transition: background-color 0.2s;
             "
-    >
-      ${playlist.name}
-    </button>
-  `).join('');
+        >
+            <img 
+                src="${playlist.images?.[0]?.url || '#'}" 
+                style="width: 40px; height: 40px; border-radius: 4px; margin-right: 12px; background: #333;"
+                onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22><rect width=%2224%22 height=%2224%22 fill=%22%23333%22/></svg>'"
+            >
+            <div style="text-align: left;">
+                <div class="playlist-name" style="font-size: 14px;">${playlist.name}</div>
+                <div style="font-size: 12px; color: #b3b3b3;">${playlist.tracks.total} tracks</div>
+            </div>
+        </button>
+    `).join('');
 }
 
 // Attach handlers to playlist items
@@ -557,14 +707,6 @@ function initializeExtension() {
   });
 }
 
-// Cleanup function
-function cleanup() {
-  const button = document.querySelector('.spotify-save-button');
-  const menu = document.getElementById('spotify-playlist-menu');
-  if (button) button.remove();
-  if (menu) menu.remove();
-}
-
 // Start the extension
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initializeExtension);
@@ -572,8 +714,14 @@ if (document.readyState === 'loading') {
   initializeExtension();
 }
 
-// Handle extension updates/removal
-chrome.runtime.onSuspend.addListener(cleanup);
+window.addEventListener('unload', () => {
+  const button = document.querySelector('.spotify-save-button');
+  const menu = document.getElementById('spotify-playlist-menu');
+  if (button) button.remove();
+  if (menu) menu.remove();
+});
+
+
 
 // Export for testing if needed
 if (typeof module !== 'undefined' && module.exports) {
