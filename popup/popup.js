@@ -289,36 +289,30 @@ async function loadPlaylists() {
             throw new Error('No valid playlists found');
         }
 
-        // Render playlists
         const playlistsHTML = validPlaylists.map(playlist => {
-            // Safely access nested properties
-            const imageUrl = playlist.images &&
-                playlist.images[0] &&
-                playlist.images[0].url;
-            const trackCount = playlist.tracks &&
-                typeof playlist.tracks.total === 'number' ?
-                playlist.tracks.total :
-                '0';
+            const imageUrl = playlist.images?.[0]?.url;
+            const trackCount = playlist.tracks?.total ?? '0';
 
             return `
-                <button 
-                    class="w-full text-left p-2 hover:bg-gray-100 rounded mb-2 transition-colors duration-200"
-                    data-playlist-id="${playlist.id}"
-                >
-                    <div class="flex items-center space-x-3">
-                        <div class="flex-shrink-0 w-10 h-10 bg-gray-200 rounded overflow-hidden">
-                            ${imageUrl ?
-                    `<img src="${imageUrl}" class="w-full h-full object-cover" alt="" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22><rect width=%2224%22 height=%2224%22 fill=%22%23ddd%22/></svg>'">`
-                    : '<div class="w-full h-full bg-gray-200"></div>'
+        <button 
+            class="w-full text-left p-3 hover:bg-gray-800 rounded-lg mb-2 transition-colors duration-200 group"
+            data-playlist-id="${playlist.id}"
+        >
+            <div class="flex items-center space-x-3">
+                <div class="flex-shrink-0 w-12 h-12 bg-gray-800 rounded overflow-hidden">
+                    ${imageUrl
+                    ? `<img src="${imageUrl}" class="w-full h-full object-cover group-hover:opacity-80 transition-opacity" alt=""
+                             onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22><rect width=%2224%22 height=%2224%22 fill=%22%23333%22/></svg>'">`
+                    : '<div class="w-full h-full bg-gray-700"></div>'
                 }
-                        </div>
-                        <div class="flex-1 min-w-0">
-                            <p class="text-sm font-medium text-gray-900 truncate">${playlist.name}</p>
-                            <p class="text-xs text-gray-500">${trackCount} tracks</p>
-                        </div>
-                    </div>
-                </button>
-            `;
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium text-white group-hover:text-green-400 truncate transition-colors">${playlist.name}</p>
+                    <p class="text-xs text-gray-400">${trackCount} tracks</p>
+                </div>
+            </div>
+        </button>
+    `;
         }).join('');
 
         playlistsContainer.innerHTML = `

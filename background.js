@@ -1,5 +1,15 @@
 //background.js file
 
+chrome.runtime.onInstalled.addListener(() => {
+    chrome.action.setIcon({
+        path: {
+            "16": "icons/icon16.png",
+            "48": "icons/icon48.png",
+            "128": "icons/icon128.png"
+        }
+    });
+});
+
 // Handle messages from content script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.type === 'GET_PLAYLISTS') {
@@ -24,6 +34,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return true; // Will respond asynchronously
     }
 });
+
+
+
 
 async function fetchPlaylists() {
     const token = await chrome.storage.local.get('spotify_token');

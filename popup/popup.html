@@ -10,12 +10,56 @@
         body {
             width: 320px;
             min-height: 300px;
+            background-color: #121212;
+            color: white;
+        }
+
+        .spotify-green {
+            background-color: #1DB954;
+        }
+
+        .spotify-green:hover {
+            background-color: #1ed760;
+        }
+
+        .logo {
+            width: 40px;
+            height: 40px;
         }
     </style>
 </head>
 
-<body>
-    <div id="app"></div>
+<body class="font-sans">
+    <div id="app" class="min-h-full">
+        <div class="p-6 flex flex-col items-center gap-6">
+            <!-- Logo and Title -->
+            <div class="flex items-center gap-3">
+                <img src="icons/icon48.png" alt="Logo" class="logo">
+                <h2 class="text-xl font-bold">YouTube to Spotify</h2>
+            </div>
+
+            <!-- Login Button -->
+            <button id="login-button" class="w-full py-3 px-6 spotify-green text-white rounded-full font-bold 
+                           transition-all duration-200 transform hover:scale-105 active:scale-95 
+                           flex items-center justify-center gap-2">
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                    <path
+                        d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.371-.721.49-1.101.241-3.021-1.85-6.82-2.27-11.3-1.24-.424.12-.851-.12-.97-.54-.12-.421.12-.84.54-.96 4.901-1.13 9.1-.67 12.5 1.4.371.24.49.72.241 1.1zm1.48-3.3c-.301.42-.841.6-1.262.3-3.45-2.13-8.71-2.74-12.81-1.5-.5.15-1.02-.15-1.17-.64-.15-.5.15-1.02.64-1.17 4.671-1.4 10.471-.72 14.441 1.77.42.3.6.84.301 1.26zm.128-3.42c-4.141-2.46-11-2.69-14.941-1.49-.601.181-1.231-.181-1.411-.781-.181-.601.181-1.231.781-1.411 4.561-1.381 12.121-1.111 16.891 1.71.571.341.761 1.081.421 1.621-.341.53-1.081.72-1.621.38z" />
+                </svg>
+                Connect to Spotify
+            </button>
+
+            <!-- Status Message (hidden by default) -->
+            <div id="status-message" class="text-sm text-gray-400 text-center hidden">
+                Loading...
+            </div>
+
+            <!-- Footer -->
+            <div class="text-xs text-gray-500 text-center mt-auto">
+                Save YouTube music to your Spotify playlists
+            </div>
+        </div>
+    </div>
     <script src="popup.js" type="module"></script>
 </body>
 
